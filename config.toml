@@ -1,0 +1,13 @@
+[Service]
+Ip = "0.0.0.0"
+Port = 8080
+
+[Camera]
+Ip = "127.0.0.1"
+Port = 9004
+
+[JavaUrl]
+Base = "https://line-pre.wp.com"
+Check = "/admin/aline/bundleCodeBindCheck"  # 捆码检测
+LabelCode = "/admin/aline/getLabelCodes"  # 随机码获取17位数码
+Upload = "/admin/aline/uploadBindFile"  # 上传

@@ -1,0 +1,12 @@
+2022/03/19 20:23:29 main.go:63: 程序的配置是:  &{{0.0.0.0 8080} {{127.0.0.1 9004}} {https://line-pre.wopuwulian.com /admin/autobindline/bundleCodeBindCheck /admin/autobindline/getLabelCodes /admin/autobindline/uploadBindFile}}
+2022/03/19 20:23:29 main.go:67: 程序开始启动...
+2022/03/19 20:23:29 util.go:555: info:开始加载播放文件
+2022/03/19 20:23:29 util.go:572: info:播放文件加载成功
+2022/03/19 20:28:53 main.go:63: 程序的配置是:  &{{0.0.0.0 8080} {{127.0.0.1 9004}} {https://line-pre.wopuwulian.com /admin/autobindline/bundleCodeBindCheck /admin/autobindline/getLabelCodes /admin/autobindline/uploadBindFile}}
+2022/03/19 20:28:53 main.go:67: 程序开始启动...
+2022/03/19 20:28:53 util.go:555: info:开始加载播放文件
+2022/03/19 20:28:53 util.go:572: info:播放文件加载成功
+2022/03/19 20:30:33 main.go:63: 程序的配置是:  &{{0.0.0.0 8080} {{127.0.0.1 9004}} {https://line-pre.wopuwulian.com /admin/autobindline/bundleCodeBindCheck /admin/autobindline/getLabelCodes /admin/autobindline/uploadBindFile}}
+2022/03/19 20:30:33 main.go:67: 程序开始启动...
+2022/03/19 20:30:33 util.go:555: info:开始加载播放文件
+2022/03/19 20:30:33 util.go:572: info:播放文件加载成功
