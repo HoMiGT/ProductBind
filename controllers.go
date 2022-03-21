@@ -28,6 +28,7 @@ import (
 
 // 产品绑定 ws连接
 func pdWs(w http.ResponseWriter, r *http.Request) {
+	w.Header().Add("Access-Control-Allow-Origin", "*")
 	defer func() {
 		if err := recover(); err != nil {
 			log.Println("error:", err)
@@ -78,6 +79,17 @@ func pdWs(w http.ResponseWriter, r *http.Request) {
 		quitWarnChan <- struct{}{}   // 关闭警告协程
 		log.Println("info:", "内存清理完成")
 	}()
+	if wp.TipsBytes, err = ioutil.ReadFile("tips.mp3"); err != nil {
+		log.Println("error:", err)
+		return
+	}
+	if wp.WarnBytes, err = ioutil.ReadFile("warn.mp3"); err != nil {
+		log.Println("error:", err)
+		return
+	}
+	wp.SetTips(true)
+	wp.SetWarn(true)
+
 	for {
 		err := conn.ReadJSON(wp)
 		if err != nil {
@@ -147,6 +159,7 @@ func pdWs(w http.ResponseWriter, r *http.Request) {
 
 // 展示错误的历史文件
 func pdDisplay(w http.ResponseWriter, r *http.Request) {
+	w.Header().Add("Access-Control-Allow-Origin", "*")
 	defer func() {
 		if err := recover(); err != nil {
 			log.Println("error:", "退出'pdDisplay'错误:", err)
@@ -227,9 +240,10 @@ func pdDisplay(w http.ResponseWriter, r *http.Request) {
 
 // 产品绑定-历史记录
 func pdHistory(w http.ResponseWriter, r *http.Request) {
+	w.Header().Add("Access-Control-Allow-Origin", "*")
 	defer func() {
 		if err := recover(); err != nil {
-			w.Write(Response{
+			_, _ = w.Write(Response{
 				Status: false,
 				Msg:    err.(error).Error(),
 			}.Json())
@@ -286,6 +300,7 @@ func pdHistory(w http.ResponseWriter, r *http.Request) {
 
 // 产品绑定-捆码检查
 func pdCheck(w http.ResponseWriter, r *http.Request) {
+	w.Header().Add("Access-Control-Allow-Origin", "*")
 	defer func() {
 		if err := recover(); err != nil {
 			log.Println("error:", err)
@@ -365,6 +380,7 @@ func pdCheck(w http.ResponseWriter, r *http.Request) {
 
 // 产品绑定-上传记录
 func pdUpload(w http.ResponseWriter, r *http.Request) {
+	w.Header().Add("Access-Control-Allow-Origin", "*")
 	defer func() {
 		if err := recover(); err != nil {
 			log.Println("error:", err)
@@ -470,7 +486,7 @@ func pdUpload(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		uf := filepath.Join(ud, UpFaiFile)
-		os.RemoveAll(uf)
+		_ = os.RemoveAll(uf)
 		ufh, err := os.Create(uf) // 创建写入失败的文件句柄
 		if err != nil {
 			e = "error:创建写入上传失败记录的文件失败:" + err.Error()
@@ -488,7 +504,7 @@ func pdUpload(w http.ResponseWriter, r *http.Request) {
 		ufw := csv.NewWriter(ufh) // 创建成功csv的writer对象
 
 		fl := make([]dataframe.F, 0, len(jur.Data))
-		for k, _ := range jur.Data {
+		for k := range jur.Data {
 			fl = append(fl, dataframe.F{
 				Colname:    "X1",
 				Comparator: series.Eq,
@@ -563,6 +579,7 @@ func pdUpload(w http.ResponseWriter, r *http.Request) {
 
 // 产品绑定-查看记录
 func pdLookup(w http.ResponseWriter, r *http.Request) {
+	w.Header().Add("Access-Control-Allow-Origin", "*")
 	defer func() {
 		if err := recover(); err != nil {
 			log.Println("error:", err)
@@ -768,6 +785,7 @@ func pdLookup(w http.ResponseWriter, r *http.Request) {
 
 // 产品绑定-查看失败原因
 func pdFail(w http.ResponseWriter, r *http.Request) {
+	w.Header().Add("Access-Control-Allow-Origin", "*")
 	defer func() {
 		if err := recover(); err != nil {
 			log.Println("error:", err)
@@ -866,6 +884,7 @@ func pdFail(w http.ResponseWriter, r *http.Request) {
 
 // 失败原因详情
 func pdFailRecord(w http.ResponseWriter, r *http.Request) {
+	w.Header().Add("Access-Control-Allow-Origin", "*")
 	defer func() {
 		if err := recover(); err != nil {
 			log.Println("error:", err)
@@ -910,6 +929,7 @@ func pdFailRecord(w http.ResponseWriter, r *http.Request) {
 
 // 产品绑定-整版移除搜索
 func pdFilter(w http.ResponseWriter, r *http.Request) {
+	w.Header().Add("Access-Control-Allow-Origin", "*")
 	defer func() {
 		if err := recover(); err != nil {
 			log.Println("error:", err)
@@ -988,6 +1008,7 @@ func pdFilter(w http.ResponseWriter, r *http.Request) {
 
 // 产线绑定-整版移除
 func pdRemove(w http.ResponseWriter, r *http.Request) {
+	w.Header().Add("Access-Control-Allow-Origin", "*")
 	defer func() {
 		if err := recover(); err != nil {
 			log.Println("error:", err)
@@ -1034,6 +1055,7 @@ func pdRemove(w http.ResponseWriter, r *http.Request) {
 
 // 产线绑定-删除记录
 func pdDelete(w http.ResponseWriter, r *http.Request) {
+	w.Header().Add("Access-Control-Allow-Origin", "*")
 	defer func() {
 		if err := recover(); err != nil {
 			log.Println("error:", err)

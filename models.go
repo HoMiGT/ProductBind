@@ -10,7 +10,6 @@ import (
 	"database/sql"
 	"database/sql/driver"
 	"encoding/json"
-	"github.com/patrickmn/go-cache"
 	"log"
 	"regexp"
 	"strconv"
@@ -18,8 +17,8 @@ import (
 	"time"
 
 	"github.com/BurntSushi/toml"
-	"github.com/hajimehoshi/oto"
 	_ "github.com/mattn/go-sqlite3"
+	"github.com/patrickmn/go-cache"
 )
 
 var (
@@ -33,11 +32,12 @@ var (
 
 // 读码状态
 const (
-	StateReading       = iota // 读码中
-	StateNoUpload             // 未上传
-	StateUploading            // 上传中
-	StateUploadSuccess        // 上传成功
-	StateUploadFail           // 上传失败
+	StateReading       = iota // 读码中  0
+	StateUploading            // 上传中  1
+	StateUploadFail           // 上传失败 2
+	StateNoUpload             // 未上传  3
+	StateUploadSuccess        // 上传成功  4
+
 )
 
 // 保存文件常量
@@ -60,13 +60,6 @@ const (
 	Page  = "page"
 	Kind  = "kind"
 	Index = "index"
-)
-
-// 播放的参数
-var (
-	PlayContext *oto.Context
-	PlayData    []byte
-	PlayErr     error
 )
 
 // Ini 全局配置
@@ -144,6 +137,39 @@ type WsParams struct {
 	lock   sync.RWMutex // 读写锁
 	keep   bool         // 是否继续执行  默认false  当状态是 StateStart StateContinue 是该值为True
 	isStop bool         // 是否停止
+
+	isTips    bool   // 当前播放是否是提醒的decode
+	isWarn    bool   // 当前播放是否是警告的decode
+	TipsBytes []byte // tips.mp3 文件的字节数
+	WarnBytes []byte // warn.mp3 文件的字节数
+}
+
+// IsWarn 获取isWarn的值
+func (w *WsParams) IsWarn() bool {
+	w.lock.RLock()
+	defer w.lock.RUnlock()
+	return w.isWarn
+}
+
+// SetWarn 设置isWarn
+func (w *WsParams) SetWarn(b bool) {
+	w.lock.Lock()
+	defer w.lock.Unlock()
+	w.isWarn = b
+}
+
+// IsTips 播放类型是否是提醒
+func (w *WsParams) IsTips() bool {
+	w.lock.RLock()
+	w.lock.RUnlock()
+	return w.isTips
+}
+
+// SetTips 设置播放类型是提醒
+func (w *WsParams) SetTips(b bool) {
+	w.lock.Lock()
+	w.lock.Unlock()
+	w.isTips = b
 }
 
 // Stop 停止状态
@@ -475,7 +501,7 @@ func (c CodeReadRecords) Select(id int, perNum int, page int, code string, kind 
 	var sqlStr string
 	switch kind {
 	case 0: // 查询全部  需要参数 perNum page kind
-		sqlStr = "SELECT * FROM code_read_records ORDER BY scan_code_time DESC LIMIT " + strconv.Itoa(perNum) + " OFFSET " + strconv.Itoa(start)
+		sqlStr = "SELECT * FROM code_read_records ORDER BY status ASC,scan_code_time DESC LIMIT " + strconv.Itoa(perNum) + " OFFSET " + strconv.Itoa(start)
 	case 1: // 根据id查询  需要参数 id kind
 		sqlStr = "SELECT * FROM code_read_records WHERE id = " + strconv.Itoa(id)
 	case 2:

@@ -272,7 +272,7 @@ func Writer(conn *websocket.Conn, csvChan <-chan []byte, quitWriterChan <-chan s
 		log.Println("info:写协程退出")
 		_ = fsh.Close()
 		_ = ffh.Close()
-		log.Println("info:csv对象 fsw,ffw 资源已经关闭")
+		log.Println("info:csv对象 fsw,ffw,player 资源已经关闭")
 
 	}()
 
@@ -337,6 +337,15 @@ func Writer(conn *websocket.Conn, csvChan <-chan []byte, quitWriterChan <-chan s
 						Data:   wc.GetValue(),
 					},
 				})
+				if !status {
+					for i := 0; i < 3; i++ {
+						if !wp.GetKeep() {
+							break
+						}
+						PlayMp3(wp.WarnBytes)
+						time.Sleep(time.Second * 1)
+					}
+				}
 				if err != nil {
 					log.Println("error", err)
 				}
@@ -349,10 +358,8 @@ func Writer(conn *websocket.Conn, csvChan <-chan []byte, quitWriterChan <-chan s
 // Warning 播放音频文件
 func Warning(warnChan <-chan struct{}, quitWarnChan <-chan struct{}, wp *WsParams) {
 	log.Println("info:开始启动写协程...")
-	var player = PlayContext.NewPlayer() // 初始化播放器
 	defer func() {
 		log.Println("info:警告协程退出")
-		_ = player.Close()
 		log.Println("info:播放资源已释放")
 	}()
 
@@ -366,20 +373,45 @@ func Warning(warnChan <-chan struct{}, quitWarnChan <-chan struct{}, wp *WsParam
 			return
 		case <-warnChan: // 警告协程更新时间
 			begin = time.Now()
+		default:
+			{
+				if !wp.GetKeep() { // 判断是否开始
+					time.Sleep(time.Millisecond * 300)
+					begin = time.Now()
+					continue
+				}
+				if begin.IsZero() { // 判断开始时间是否初始化，没有则进行更新时间
+					begin = time.Now()
+				}
+				current := time.Now()
+				if current.Sub(begin).Seconds() > 30.0 {
+					PlayMp3(wp.TipsBytes)
+					time.Sleep(time.Second * 1) // 警告隔1s
+				}
+			}
 		}
-		if !wp.GetKeep() { // 判断是否开始
-			time.Sleep(time.Millisecond * 300)
-			continue
-		}
-		if begin.IsZero() { // 判断开始时间是否初始化，没有则进行更新时间
-			begin = time.Now()
-		}
-		current := time.Now()
-		if current.Sub(begin).Seconds() > 30.0 {
-			_, _ = player.Write(PlayData) // 超时30 播放警告
-			time.Sleep(time.Second * 5)   // 警告隔5s
-		}
+
 	}
+}
+
+// PlayMp3 播放mp3
+func PlayMp3(mp3 []byte) {
+	dec, data, err := minimp3.DecodeFull(mp3)
+	if err != nil { // 解码
+		log.Println(err)
+		return
+	}
+	ctx, err := oto.NewContext(dec.SampleRate, dec.Channels, 2, 1024)
+	if err != nil {
+		log.Println(err)
+		return
+	}
+	play := ctx.NewPlayer()
+	_, _ = play.Write(data)
+	defer func() {
+		_ = play.Close()
+		_ = ctx.Close()
+	}()
 }
 
 // ParseUrl 解析url
@@ -548,28 +580,6 @@ func ParseText(s string, fsw *csv.Writer, ffw *csv.Writer, limit int, isIntoBox 
 			return false, insert, err
 		}
 	}
-}
-
-// InitPlay 初始化播放文件
-func InitPlay() {
-	log.Println("info:开始加载播放文件")
-	var file []byte
-	if file, PlayErr = ioutil.ReadFile("warn.mp3"); PlayErr != nil { // 读取mp3音频文件
-		log.Fatal(PlayErr)
-		return
-	}
-
-	var dec *minimp3.Decoder
-	if dec, PlayData, PlayErr = minimp3.DecodeFull(file); PlayErr != nil { // 解码mp3文件
-		log.Fatal(PlayErr)
-		return
-	}
-
-	if PlayContext, PlayErr = oto.NewContext(dec.SampleRate, dec.Channels, 2, 1024); PlayErr != nil {
-		log.Fatal(PlayErr)
-		return
-	}
-	log.Println("info:播放文件加载成功")
 }
 
 // PathExists 判断路径是否存在
