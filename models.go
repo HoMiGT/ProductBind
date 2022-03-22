@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/BurntSushi/toml"
+	"github.com/hajimehoshi/oto"
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/patrickmn/go-cache"
 )
@@ -64,6 +65,8 @@ const (
 
 // Ini 全局配置
 var Ini *Config
+
+var Ctx *oto.Context
 
 var (
 	// CharRegexp 数据校验正则

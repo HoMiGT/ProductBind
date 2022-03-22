@@ -139,8 +139,10 @@ QUIT:
 				break QUIT
 			}
 		}
+		_, _ = client.Write([]byte("SKCLOSE\r"))
 		wp.close = client.Close
 		reader := bufio.NewReader(client) // 实例化连接客户端的读句柄
+
 		for {
 			if wp.Stop() {
 				break QUIT
@@ -170,7 +172,9 @@ QUIT:
 					if !wp.GetKeep() { // 判断是否是暂停或者停止状态
 						continue
 					}
-					csvChan <- msg         // 传输数据
+					msgStr := string(msg)
+					log.Println(msgStr)
+					csvChan <- msg
 					warnChan <- struct{}{} // 发送更新时间信号
 				}
 			}
@@ -401,16 +405,18 @@ func PlayMp3(mp3 []byte) {
 		log.Println(err)
 		return
 	}
-	ctx, err := oto.NewContext(dec.SampleRate, dec.Channels, 2, 1024)
-	if err != nil {
-		log.Println(err)
-		return
+	if Ctx == nil {
+		Ctx, err = oto.NewContext(dec.SampleRate, dec.Channels, 2, 1024)
+		if err != nil {
+			log.Println(err)
+			return
+		}
 	}
-	play := ctx.NewPlayer()
+
+	play := Ctx.NewPlayer()
 	_, _ = play.Write(data)
 	defer func() {
 		_ = play.Close()
-		_ = ctx.Close()
 	}()
 }
 
