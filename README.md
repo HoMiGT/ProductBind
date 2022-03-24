@@ -50,7 +50,7 @@
 ![Image](https://github.com/TeslaHou/ProductBind/blob/master/iShot2022-03-24%2009.44.35.png?raw=true)
     
     5 右键我的电脑选择"管理"进入到windows服务中启动服务如下图所示:
-![Image](https://github.com/TeslaHou/ProductBind/blob/master/iShot2022-03-24%09.52.34.png?raw=true)
+![Image](https://github.com/TeslaHou/ProductBind/blob/master/iShot2022-03-24%2009.52.34.png?raw=true)
       
       更新程序需要先在此停止服务，对服务的启动，暂停以及重启均在此设置，设置之后程序将随系统自动启动。
       
