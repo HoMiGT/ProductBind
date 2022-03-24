@@ -47,10 +47,11 @@
                     Services
       下找到刚刚注册的服务名ProductAutoBind,右键新建一个项，名为"Parameters",选中该项并右键新建三个字符串分别为"Application","AppDirectory","Description"
     并分别右键三个字符串设置值，如下图所示:
-<img src="./iShot2022-03-24_09.44.35.png">
+<!-- ![image](https://github.com/TeslaHou/ProductBind/blob/master/iShot2022-03-24%2009.44.35.png?raw=true) -->
+<img src="./iShot2022-03-24%09.44.35.png">
     
     5 右键我的电脑选择"管理"进入到windows服务中启动服务如下图所示:
-<img src="./iShot2022-03-24_09.52.34.png">
+<img src="./iShot2022-03-24%09.52.34.png">
       
       更新程序需要先在此停止服务，对服务的启动，暂停以及重启均在此设置，设置之后程序将随系统自动启动。
       
