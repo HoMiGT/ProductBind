@@ -378,6 +378,82 @@ func pdCheck(w http.ResponseWriter, r *http.Request) {
 	}.Json())
 }
 
+// 上传前确认
+func pdUploadBefore(w http.ResponseWriter, r *http.Request) {
+	w.Header().Add("Access-Control-Allow-Origin", "*")
+	defer func() {
+		if err := recover(); err != nil {
+			log.Println("error:", err)
+		}
+	}()
+	var e string
+	params := r.URL.Query()
+	code := params.Get(Code) // 获取过滤的字段
+	if code == "" {
+		e = "error:缺少必要字段 'code' "
+		log.Println(e)
+		_, _ = w.Write(Response{
+			Status: false,
+			Msg:    e,
+		}.Json())
+		return
+	}
+
+	var dfs dataframe.DataFrame
+	key := code + GoKeySucSuffix
+	if dfi, ok := GoCache.Get(key); ok { // 获取成功记录文件缓存
+		dfs = dfi.(dataframe.DataFrame)
+	} else {
+		filePath := filepath.Join("static", code, SucFile) // 文件路径
+
+		_, err := os.Stat(filePath)
+		if err != nil {
+			e = "error:未找到文件'" + filePath + "',请核对"
+			log.Println(e)
+			_, _ = w.Write(Response{
+				Status: false,
+				Msg:    e,
+			}.Json())
+			return
+		}
+		fsi, _ := os.Open(filePath)
+		defer func() {
+			_ = fsi.Close()
+		}()
+		if err != nil {
+			e = "error:打开成功记录文件失败:" + err.Error()
+			log.Println(e)
+			_, _ = w.Write(Response{
+				Status: false,
+				Msg:    e,
+			}.Json())
+			return
+		}
+		fo := dataframe.HasHeader(false)
+		df := dataframe.ReadCSV(fsi, fo)
+		order := dataframe.RevSort("X0")
+		dfs = df.Arrange(order)
+		GoCache.Delete(key)
+		GoCache.Set(key, dfs, GoCacheTimeout) // 设置成功记录文件缓存
+	}
+
+	ids := dfs.Col("X0").Records()
+	mp := make(map[string]struct{})
+	for i := range ids {
+		t := ids[i]
+		mp[t] = struct{}{}
+	}
+	index := len(mp)
+	total := dfs.Nrow()
+	_, _ = w.Write(Response{
+		Status: true,
+		Data: FileStatistic{
+			IndexCount: index,
+			LabelCount: total,
+		}}.Json())
+
+}
+
 // 产品绑定-上传记录
 func pdUpload(w http.ResponseWriter, r *http.Request) {
 	w.Header().Add("Access-Control-Allow-Origin", "*")
@@ -681,6 +757,9 @@ func pdLookup(w http.ResponseWriter, r *http.Request) {
 				}.Json())
 				return
 			}
+			defer func() {
+				_ = fsi.Close()
+			}()
 			fo := dataframe.HasHeader(false)
 			df := dataframe.ReadCSV(fsi, fo)
 			order := dataframe.RevSort("X0")
@@ -727,6 +806,9 @@ func pdLookup(w http.ResponseWriter, r *http.Request) {
 				}.Json())
 				return
 			}
+			defer func() {
+				_ = ffi.Close()
+			}()
 			fo := dataframe.HasHeader(false)
 			df := dataframe.ReadCSV(ffi, fo)
 			order := dataframe.RevSort("X0")
@@ -848,6 +930,9 @@ func pdFail(w http.ResponseWriter, r *http.Request) {
 			}.Json())
 			return
 		}
+		defer func() {
+			_ = ffi.Close()
+		}()
 		fo := dataframe.HasHeader(false)
 		df := dataframe.ReadCSV(ffi, fo)
 		od := dataframe.RevSort("X0")
@@ -966,6 +1051,9 @@ func pdFilter(w http.ResponseWriter, r *http.Request) {
 			}.Json())
 			return
 		}
+		defer func() {
+			_ = ffi.Close()
+		}()
 		fo := dataframe.HasHeader(false)
 		df := dataframe.ReadCSV(ffi, fo)
 		od := dataframe.RevSort("X0")

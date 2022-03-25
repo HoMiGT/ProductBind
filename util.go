@@ -53,10 +53,20 @@ func StartHandle(conn *websocket.Conn, csvChan chan []byte, warnChan chan struct
 		return
 	}
 
+	var id int
 	// 新建记录
 	crr := CodeReadRecords{}
-	current := Now()
-	id := crr.Insert(wp.BundleCode, wp.IsIntoBox, current)
+	records := crr.Select(0, 0, 0, wp.BundleCode, 3)
+	if len(records) > 0 {
+		// 根据捆码查询 如有过则更新文件
+		id = int(records[0].ID)
+		crr.UpdateStatus(id, "", "", 4)
+	} else {
+		// 否则新增记录 并新建文件
+		current := Now()
+		id = crr.Insert(wp.BundleCode, wp.IsIntoBox, current)
+	}
+
 	log.Println("info:", wp.BundleCode, ",捆码的记录创建成功")
 	if err = conn.WriteJSON(WsResponse{
 		OperateCode: OperaArea,
@@ -172,8 +182,6 @@ QUIT:
 					if !wp.GetKeep() { // 判断是否是暂停或者停止状态
 						continue
 					}
-					msgStr := string(msg)
-					log.Println(msgStr)
 					csvChan <- msg
 					warnChan <- struct{}{} // 发送更新时间信号
 				}
@@ -189,12 +197,36 @@ QUIT:
 // Writer 写入csv文件
 func Writer(conn *websocket.Conn, csvChan <-chan []byte, quitWriterChan <-chan struct{}, wp *WsParams, wc *WsCount, fd string) {
 	log.Println("info:开始启动写协程...")
-	var e string
+	var (
+		e              string
+		offset, cursor int
+		status         bool
+		err            error
+	)
 	// 新建成功文件，新建失败文件
 	// 保存成功文件
 	fs := filepath.Join(fd, SucFile)
 	if !PathExists(fs) { // 判断成功文件是否存在，不存在创建文件
-		_, err := os.Create(fs)
+		_, err = os.Create(fs)
+		if err != nil {
+			e = "error:" + err.Error()
+			log.Println(e)
+			err = conn.WriteJSON(WsResponse{
+				OperateCode: OperaArea,
+				Response: Response{
+					Status: false,
+					Msg:    e,
+				},
+			})
+			if err != nil {
+				log.Println(err)
+			}
+			wp.SetKeep(false)
+			return
+		}
+	} else {
+		// 读取文件获取最大的版索引
+		offset, err = FindMaxId(fs)
 		if err != nil {
 			e = "error:" + err.Error()
 			log.Println(e)
@@ -284,8 +316,6 @@ func Writer(conn *websocket.Conn, csvChan <-chan []byte, quitWriterChan <-chan s
 	rule := ReadRules() // 读取配置的识别规则
 	log.Println("info:自定义规则加载成功")
 
-	cursor := 0
-	var status bool
 	sucKey := wp.BundleCode + GoKeySucSuffix
 	faiKey := wp.BundleCode + GoKeyFaiSuffix
 	log.Println("info:开始清空缓存...")
@@ -308,7 +338,8 @@ func Writer(conn *websocket.Conn, csvChan <-chan []byte, quitWriterChan <-chan s
 					continue
 				}
 				s := string(r)
-				ok, dl, err := ParseText(s, fsw, ffw, wp.Limit, wp.IsIntoBox, rule, cursor)
+				s = strings.Replace(s, CameraReplace, "", -1)
+				ok, dl, err := ParseText(s, fsw, ffw, wp.Limit, wp.IsIntoBox, rule, cursor, offset)
 				if err != nil {
 					e = "error:" + err.Error()
 					log.Println(e)
@@ -426,6 +457,8 @@ func ParseUrl(u string) string {
 		return strings.Split(u, "?")[1]
 	} else if strings.Contains(u, "=") { // 判断链接里是否包含 =
 		return strings.Split(u, "=")[1]
+	} else if strings.Contains(u, ":") {
+		return strings.Split(u, ":")[1]
 	} else { // 否则直接返回
 		return u
 	}
@@ -437,6 +470,8 @@ func DefaultParse(s string) string {
 		return strings.Split(s, "?")[1]
 	} else if strings.Contains(s, "=") {
 		return strings.Split(s, "=")[1]
+	} else if strings.Contains(s, ":") {
+		return strings.Split(s, ":")[1]
 	} else {
 		return s
 	}
@@ -481,7 +516,7 @@ func ParseSlice(l []string, cs []string, r *Rule, isIntoBox int, isBox bool) []s
 	} else {
 		if isIntoBox == 1 {
 			if isBox {
-				l = append(l, cs[0])
+				l = append(l, DefaultParse(cs[0]))
 			} else {
 				tmp := cs[1:]
 				for i := range tmp {
@@ -504,7 +539,7 @@ func ParseSlice(l []string, cs []string, r *Rule, isIntoBox int, isBox bool) []s
 }
 
 // ParseText 解析摄像头传输的数据
-func ParseText(s string, fsw *csv.Writer, ffw *csv.Writer, limit int, isIntoBox int, rule *Rules, cursor int) (bool, [][]string, error) {
+func ParseText(s string, fsw *csv.Writer, ffw *csv.Writer, limit int, isIntoBox int, rule *Rules, cursor, offset int) (bool, [][]string, error) {
 	s = strings.TrimSpace(s)
 	cs := strings.Split(s, ",")
 	l := len(cs)
@@ -545,7 +580,7 @@ func ParseText(s string, fsw *csv.Writer, ffw *csv.Writer, limit int, isIntoBox 
 	}
 	scanTime := Now()
 	for i := range ls {
-		index := strconv.Itoa(cursor)
+		index := strconv.Itoa(cursor + offset)
 		switch isQualified {
 		case true: // 合格
 			if isIntoBox == 1 { // 装箱
@@ -643,7 +678,7 @@ func QueryWasteCode(wasteCodes []string) (map[string]string, error) {
 	url := Ini.JavaUrl.Base + Ini.JavaUrl.LabelCode
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
-		log.Println(err)
+		log.Println("error: ", err)
 		return nil, err
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(5)*time.Second)
@@ -651,7 +686,7 @@ func QueryWasteCode(wasteCodes []string) (map[string]string, error) {
 
 	wastes, err := json.Marshal(wasteCodes)
 	if err != nil {
-		log.Println(err)
+		log.Println("error: ", err)
 		return nil, err
 	}
 
@@ -667,7 +702,7 @@ func QueryWasteCode(wasteCodes []string) (map[string]string, error) {
 
 	err = json.Unmarshal(body, jur)
 	if err != nil {
-		log.Println(err)
+		log.Println("error: ", err)
 		return nil, err
 	}
 	if jur.Success {
@@ -803,4 +838,41 @@ func RemoveEdition(code string, kind int, split []string) (bool, Response) {
 	GoCache.Delete(key)
 	GoCache.Set(key, df, GoCacheTimeout) // 重置缓存
 	return true, Response{}
+}
+
+// FindMaxId 找到文件的最大id
+func FindMaxId(fs string) (int, error) {
+	var (
+		e   string
+		err error
+	)
+	fsi, _ := os.Open(fs)
+	defer func() {
+		_ = fsi.Close()
+	}()
+	if err != nil {
+		e = "error:打开成功记录文件失败:" + err.Error()
+		log.Println(e)
+		return 0, err
+	}
+	fo := dataframe.HasHeader(false)
+	df := dataframe.ReadCSV(fsi, fo)
+	ids := df.Col("X0").Records()
+	mp := make(map[string]struct{})
+	for i := range ids {
+		t := ids[i]
+		mp[t] = struct{}{}
+	}
+	maxId := 0
+	for k := range mp {
+		i, err := strconv.Atoi(k)
+		if err != nil {
+			return 0, err
+		}
+		if i > maxId {
+			maxId = i
+		}
+	}
+	maxId += 1
+	return maxId, nil
 }

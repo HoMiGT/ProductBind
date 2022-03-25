@@ -33,6 +33,7 @@ func server() {
 	r.HandleFunc("/display", pdDisplay).Methods(http.MethodGet, http.MethodOptions)            // 错误展示
 	r.HandleFunc("/history", pdHistory).Methods(http.MethodGet, http.MethodOptions)            // 历史记录
 	r.HandleFunc("/check/{code}", pdCheck).Methods(http.MethodGet, http.MethodOptions)         // 检查捆码
+	r.HandleFunc("/uploadBefore", pdUploadBefore).Methods(http.MethodGet, http.MethodOptions)  //  上传确认
 	r.HandleFunc("/upload/{id}/{code}", pdUpload).Methods(http.MethodGet, http.MethodOptions)  // 上传
 	r.HandleFunc("/lookup/{id}/{code}", pdLookup).Methods(http.MethodGet, http.MethodOptions)  // 查看
 	r.HandleFunc("/fail/{code}", pdFail).Methods(http.MethodGet, http.MethodOptions)           // 失败
@@ -65,4 +66,12 @@ func init() {
 func main() {
 	log.Println("程序开始启动...")
 	server()
+	//t1()
+	//t2()
+	//t3()
+	//t5()
+	//t6()
 }
+
+//  windows 编译没有窗口
+//  go build -ldflags "-H windowsgui"
