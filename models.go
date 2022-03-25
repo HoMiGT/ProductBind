@@ -66,7 +66,11 @@ const (
 // Ini 全局配置
 var Ini *Config
 
+// Ctx 摄像头文件
 var Ctx *oto.Context
+
+// CameraReplace 摄像头返回嘻嘻
+var CameraReplace = "ER,SKCLOSE,20"
 
 var (
 	// CharRegexp 数据校验正则
@@ -91,6 +95,22 @@ type Display struct {
 	Code      string `json:"code"`       // 编码
 	ScanTime  string `json:"scan_time"`  // 扫码时间
 	WasteCode string `json:"waste_code"` // 箱码
+}
+
+// FileStatistic 文件统计
+type FileStatistic struct {
+	IndexCount int `json:"index_count"` // 版统计个数
+	LabelCount int `json:"label_count"` // 标签统计个数
+}
+
+// Json 将结构体转换成json
+func (f FileStatistic) Json() []byte {
+	m, err := json.Marshal(f)
+	if err != nil {
+		log.Println("error:转化为json格式错误,", err)
+		return nil
+	}
+	return m
 }
 
 // PageSplit 分页
@@ -354,6 +374,7 @@ type CodeReadRecords struct {
 	Status       NullInt    `db:"status" json:"status"`                 // 状态
 	UploadTime   NullString `db:"upload_time" json:"upload_time"`       // 上传时间
 	FailReason   NullString `db:"fail_reason" json:"fail_reason"`       // 失败原因
+	CreateTime   NullString `db:"create_time" json:"create_time"`       // 创建时间
 }
 
 // Insert 插入数据
@@ -362,12 +383,14 @@ func (c CodeReadRecords) Insert(bundleCode string, isIntoBox int, scanCodeTime s
 	if err != nil {
 		panic(err)
 	}
-	defer db.Close()
-	stmt, err := db.Prepare("INSERT INTO code_read_records(bundle_code,is_into_box,scan_code_time,status) VALUES (?,?,?,?)") // 插入的sql
+	defer func() {
+		_ = db.Close()
+	}()
+	stmt, err := db.Prepare("INSERT INTO code_read_records(bundle_code,is_into_box,scan_code_time,status,create_time) VALUES (?,?,?,?,?)") // 插入的sql
 	if err != nil {
 		panic(err)
 	}
-	res, err := stmt.Exec(bundleCode, isIntoBox, scanCodeTime, StateReading) // 执行sql
+	res, err := stmt.Exec(bundleCode, isIntoBox, scanCodeTime, StateReading, scanCodeTime) // 执行sql
 	if err != nil {
 		panic(err)
 	}
@@ -384,7 +407,9 @@ func (c CodeReadRecords) Delete(id int) int {
 	if err != nil {
 		panic(err)
 	}
-	defer db.Close()
+	defer func() {
+		_ = db.Close()
+	}()
 	stmt, err := db.Prepare("DELETE FROM code_read_records WHERE id = ?") // sql语句
 	if err != nil {
 		panic(err)
@@ -406,7 +431,9 @@ func (c CodeReadRecords) UpdateStatus(id int, code string, reason string, kind i
 	if err != nil {
 		panic(err)
 	}
-	defer db.Close()
+	defer func() {
+		_ = db.Close()
+	}()
 	var (
 		rowsAffected int64
 		res          sql.Result
@@ -457,6 +484,17 @@ func (c CodeReadRecords) UpdateStatus(id int, code string, reason string, kind i
 				panic(err)
 			}
 		}
+	case 4: // 更新重新读码
+		{
+			stmt, err := db.Prepare("UPDATE code_read_records SET status = ? where id = ?") // 更新读码完成状态
+			if err != nil {
+				panic(err)
+			}
+			res, err = stmt.Exec(StateReading, id)
+			if err != nil {
+				panic(err)
+			}
+		}
 	default:
 		panic("不支持该类型")
 	}
@@ -472,7 +510,9 @@ func (c CodeReadRecords) Count() int {
 	if err != nil {
 		panic(err)
 	}
-	defer db.Close()
+	defer func() {
+		_ = db.Close()
+	}()
 
 	sqlStr := "select count(*) count from code_read_records"
 	rows, err := db.Query(sqlStr)
@@ -497,7 +537,9 @@ func (c CodeReadRecords) Select(id int, perNum int, page int, code string, kind 
 	if err != nil {
 		panic(err)
 	}
-	defer db.Close()
+	defer func() {
+		_ = db.Close()
+	}()
 
 	start, _ := PageRange(perNum, page)
 
@@ -509,6 +551,8 @@ func (c CodeReadRecords) Select(id int, perNum int, page int, code string, kind 
 		sqlStr = "SELECT * FROM code_read_records WHERE id = " + strconv.Itoa(id)
 	case 2:
 		sqlStr = "SELECT * FROM code_read_records WHERE bundle_code = '" + code + "' " + "ORDER BY scan_code_time DESC LIMIT " + strconv.Itoa(perNum) + " OFFSET " + strconv.Itoa(start)
+	case 3:
+		sqlStr = "SELECT * FROM code_read_records WHERE bundle_code = '" + code + "'  LIMIT 1"
 	default:
 		panic("不支持该类型")
 	}
@@ -517,13 +561,15 @@ func (c CodeReadRecords) Select(id int, perNum int, page int, code string, kind 
 	if err != nil {
 		panic(err)
 	}
-	defer rows.Close()
+	defer func() {
+		_ = rows.Close()
+	}()
 
 	res := make([]CodeReadRecords, 0, 10)
 
 	for rows.Next() {
 		c := CodeReadRecords{}
-		err = rows.Scan(&c.ID, &c.BundleCode, &c.IsIntoBox, &c.ScanCodeTime, &c.Status, &c.UploadTime, &c.FailReason)
+		err = rows.Scan(&c.ID, &c.BundleCode, &c.IsIntoBox, &c.ScanCodeTime, &c.Status, &c.UploadTime, &c.FailReason, &c.CreateTime)
 		if err != nil {
 			log.Println(err)
 			continue
@@ -571,7 +617,7 @@ type Camera struct {
 type JavaUrl struct {
 	Base      string `json:"Base" toml:"Base"`
 	Check     string `json:"Check" toml:"Check"`
-	LabelCode string `json:"Check" toml:"LabelCode"`
+	LabelCode string `json:"LabelCode" toml:"LabelCode"`
 	Upload    string `json:"Upload" toml:"Upload"`
 }
 
